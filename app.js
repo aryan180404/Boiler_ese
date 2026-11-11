@@ -204,19 +204,18 @@
     return name === "Linear Regression" ? "Linear regression" : name;
   }
 
+  // short names for the table; the full name is on the "Model:" line above the chart
   function shortName(name) {
-    const m = name.match(/^Linear Regression \+ tuned (.+) correction$/);
-    if (m) return `Linear regression + tuned ${m[1]} correction`;
-    const a = name.match(/^Average of Linear Regression and tuned (.+)$/);
-    if (a) return `Average of linear regression and tuned ${a[1]}`;
-    return name === "Linear Regression" ? "Linear regression" : name;
+    const m = name.match(/^Linear Regression \+ tuned (.+) correction$/) || name.match(/^Average of Linear Regression and tuned (.+)$/);
+    if (m) return "LR + " + (m[1] === "Random Forest" ? "Rand Forest" : m[1]);
+    return name === "Linear Regression" ? "LR" : name;
   }
 
   const FIGURES = {
     predicted: (v) => fmt(v),
     actual: (v) => fmt(v),
     error: (v) => (v >= 0 ? "+" : "−") + fmt(Math.abs(v), 3),
-    accuracy: (v) => fmt(v, 3),
+    accuracy: (v) => fmt(v, 2),
   };
   const figureNow = {};
   let figureAnim = null;
@@ -232,10 +231,10 @@
     whenVisible(figuresBox, () => {
       figuresWaiting = false;
       results.setAttribute("aria-busy", "true"); // screen readers announce the final values only
-      const t0 = performance.now(), dur = 750;
+      const t0 = performance.now(), dur = 1800;
       const step = (t) => {
         const k = Math.min(1, (t - t0) / dur);
-        const e = 1 - Math.pow(1 - k, 3);
+        const e = 1 - Math.pow(1 - k, 4);
         const vals = {};
         Object.keys(FIGURES).forEach((key) => { vals[key] = from[key] + (values[key] - from[key]) * e; });
         put(k < 1 ? vals : values);
@@ -285,7 +284,7 @@
       const labels = ["", "", "Actual", "Predicted", "Mean absolute error", "Accuracy", "Better than linear regression alone"];
       [[h.minutes === 1 ? "1 minute" : `${h.minutes} minutes`, ""], [shortModel, ""],
        [`${fmt(f.actual)} °C`, "n"], [`${fmt(f.predicted)} °C`, "n"],
-       [`${fmt(h.metrics.mae, 3)} °C`, "n"], [`${fmt(h.metrics.accuracy, 3)}%`, "n"], gain].forEach(([text, cls], c) => {
+       [`${fmt(h.metrics.mae, 3)} °C`, "n"], [`${fmt(h.metrics.accuracy, 2)}%`, "n"], gain].forEach(([text, cls], c) => {
         const td = document.createElement("td");
         td.textContent = text;
         if (cls) td.className = cls;
@@ -343,16 +342,10 @@
     });
 
     const h = H[hz];
-    const lin = h.linear_metrics;
     el("inputs-sub").textContent =
-      `All ${h.inputs_used.length} inputs the ${words(h.minutes)} forecast uses at this moment, as recorded by the plant sensors (temperatures in °C), grouped by part of the boiler.`;
-    el("footnote").textContent =
-      `Over all ${h.test_rows.toLocaleString("en-US")} test rows the model's mean absolute error ${words(h.minutes)} ahead is ` +
-      `${fmt(h.metrics.mae, 3)} °C, root mean squared error ${fmt(h.metrics.rmse, 3)} °C and R² ${fmt(h.metrics.r2, 4)}` +
-      (h.kind === "hybrid" ? `, against ${fmt(lin.mae, 3)} °C mean absolute error for linear regression alone. ` : ". ") +
-      `Trained on the first ${D.train_rows.toLocaleString("en-US")} rows; forecast horizon ${h.steps} rows × ${D.seconds_per_step} s = ${words(h.minutes)}. ` +
+      `All ${h.inputs_used.length} inputs the ${words(h.minutes)} forecast uses at this moment (temperatures in °C). ` +
       (h.all_sensors
-        ? `This horizon uses all ${D.n_sensors_before} sensors: dropping correlated sensors kept the 1-minute accuracy but lowered it at 5 and 10 minutes.`
+        ? `This horizon uses all ${D.n_sensors_before} sensors, because dropping correlated sensors lowered its accuracy.`
         : `${D.n_sensors_dropped} of the ${D.n_sensors_before} sensors were dropped for being more than ${D.correlation_limit} correlated with a sensor that was kept.`);
   }
 
@@ -432,7 +425,7 @@
     const marks = node("g", {}, svg);
     const anims = [];
     const moving = animate && !reduceMotion.matches && typeof svg.animate === "function";
-    const T1 = 500, T2 = 750;
+    const T1 = 1200, T2 = 1700;
     const reach = (t) => T1 + (t / 600) * T2;
     const tween = (n, frames, opts) => {
       if (!moving) return;
@@ -444,7 +437,7 @@
       n.style.transformBox = "fill-box";
       n.style.transformOrigin = "center";
       tween(n, [{ transform: "scale(0)", opacity: 0 }, { transform: "scale(1.4)", opacity: 1, offset: 0.65 },
-        { transform: "scale(1)", opacity: 1 }], { duration: 260, delay });
+        { transform: "scale(1)", opacity: 1 }], { duration: 480, delay, easing: "ease-out" });
     };
 
     // ± mean error band around each forecast
@@ -452,7 +445,7 @@
       const band = node("rect", { x: sx(t) - 7, width: 14, y: sy(f.predicted + h.metrics.mae),
         height: sy(f.predicted - h.metrics.mae) - sy(f.predicted + h.metrics.mae),
         rx: 4, fill: "var(--ink)", "fill-opacity": on ? 0.13 : 0.06 }, marks);
-      tween(band, [{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: reach(t) });
+      tween(band, [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: reach(t) });
     });
 
     // everything after Now sits in one group, uncovered from Now to the right
@@ -478,9 +471,9 @@
     if (moving) {
       pastLine.setAttribute("pathLength", 1);
       pastLine.setAttribute("stroke-dasharray", "1 1");
-      tween(pastLine, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: T1, easing: "cubic-bezier(.35, 0, .3, 1)" });
+      tween(pastLine, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: T1, easing: "cubic-bezier(.4, 0, .3, 1)" });
     }
-    pop(node("circle", { cx: sx(0), cy: sy(now[1]), r: 4.5, fill: "var(--steam)", stroke: "#fff", "stroke-width": 2 }, marks), T1 - 140);
+    pop(node("circle", { cx: sx(0), cy: sy(now[1]), r: 4.5, fill: "var(--steam)", stroke: "#fff", "stroke-width": 2 }, marks), T1 - 200);
 
     fc.forEach(({ t, f, on }) => {
       const r = on ? 5.5 : 4;

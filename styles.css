@@ -404,7 +404,7 @@ h2 #row-id { font-variant-numeric: tabular-nums; }
   .results.enter, .results-body.swap { animation: none; }
   .seg button { transition: none; }
 }
-.moment td:nth-child(2) { min-width: 230px; }
+.moment td:nth-child(2) { white-space: nowrap; }
 
 /* narrow screens: each horizon becomes a card, so nothing is cut off or needs sideways scrolling */
 @media (max-width: 720px) {
@@ -487,7 +487,7 @@ h2 #row-id { font-variant-numeric: tabular-nums; }
 .results-body { grid-template-columns: minmax(280px, 390px) 1fr; }
 @media (max-width: 860px) { .results-body { grid-template-columns: 1fr; } }
 @media (max-width: 400px) { .fig .num.small { font-size: 1.45rem; } .fig-pair { gap: 10px; } }
-.moment table { min-width: 860px; }
+.moment table { min-width: 720px; }
 @media (max-width: 720px) {
   .moment table { min-width: 0; }
   .moment td:last-child { grid-column: 1 / -1; }

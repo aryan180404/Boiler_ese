@@ -39,7 +39,10 @@ The page keeps the original dashboard design, with these changes:
 
 ## Dashboard
 - **Accuracy.** A third figure beside "Actual" and "Error" gives the accuracy of this forecast (100% minus its percentage error). The table has an "Accuracy" column beside "Mean absolute error" with the model's accuracy over the whole test set.
-- **Graph animation.** For each new test row, once the graph is on screen: the measured line draws itself up to "Now", then the dashed forecast and the lighter line of what was measured next extend together to 1, 5 and 10 minutes, each point popping in as it is reached. It takes about 1.3 seconds and the graph then stays still. Switching horizon does not replay it.
-- **Numbers count up.** Predicted, actual, error and accuracy count to their values when a new test row loads and the figures are on screen.
+- **Graph animation.** For each new test row, once the graph is on screen: the measured line draws itself up to "Now", then the dashed forecast and the lighter line of what was measured next extend together to 1, 5 and 10 minutes, each point popping in as it is reached. It takes about 3 seconds and the graph then stays still. Switching horizon does not replay it.
+- **Numbers count up.** Predicted, actual, error and accuracy count to their values when a new test row loads and the figures are on screen. This takes just under 2 seconds.
+- **Accuracy** is shown to two decimal places.
+- **Short model names in the table:** LR + Rand Forest, LR + XGBoost, LR + LightGBM. The full name stays on the "Model:" line beside the graph.
+- **Footnote removed.** The long paragraph under the inputs is gone. The one fact not shown elsewhere, which sensors each horizon uses, is now a sentence under "What the model saw".
 
 All motion is switched off for visitors who ask their device for reduced motion.
