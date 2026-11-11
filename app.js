@@ -42,6 +42,7 @@
   ];
 
   // a wide underlay behind every animated stream so it reads as a pipe
+  const figuresBox = results.querySelector(".figures");
   const pipes = plant.querySelector(".pipes");
   plant.querySelectorAll(".flow path").forEach((p) => pipes.appendChild(p.cloneNode()));
 
@@ -81,7 +82,8 @@
     for (let k = 0; k < st.n; k++) {
       const halo = node("circle", { r: st.r * 2.6 }, moteLayer);
       const core = node("circle", { r: st.r }, moteLayer);
-      if (st.fill) { halo.style.fill = st.fill; core.style.fill = st.fill; }
+      core.style.fill = "#fff";
+      if (st.fill) { halo.style.fill = st.fill; core.style.stroke = st.fill; }
       motes.push({ st, halo, core, off: (k + Math.random() * 0.7) / st.n, jit: Math.random() * 2 - 1, ph: Math.random() * 6.28 });
     }
   });
@@ -114,7 +116,7 @@
           x += m.jit * 2.5; y += Math.cos(m.ph) * 2.5;
           const k = Math.min(1, p * 1.25);
           const c = HOT.map((h, i) => Math.round(h + (COOL[i] - h) * k));
-          m.core.style.fill = m.halo.style.fill = `rgb(${c[0]},${c[1]},${c[2]})`;
+          m.core.style.stroke = m.halo.style.fill = `rgb(${c[0]},${c[1]},${c[2]})`;
         }
         const edge = Math.min(1, p / 0.05, (1 - p) / 0.05);
         const a = st.gain * edge;
@@ -146,8 +148,25 @@
   }
   const drawingOverflow = () => drawing.scrollWidth - drawing.clientWidth;
 
+  const onScreen = new Map(), waiting = new Map();
+  const watcher = new IntersectionObserver((entries) => entries.forEach((e) => {
+    onScreen.set(e.target, e.isIntersecting);
+    if (e.isIntersecting && waiting.has(e.target)) {
+      const fn = waiting.get(e.target);
+      waiting.delete(e.target);
+      fn();
+    }
+  }), { threshold: 0.4 });
+  function whenVisible(target, fn) {
+    watcher.observe(target);
+    if (onScreen.get(target)) fn(); else waiting.set(target, fn);
+  }
+
   let current = -1;
   let shown = null;
+  let chartWaiting = false;
+  let drawnWidth = 0;
+  let figuresWaiting = false;
   let tempAnim = null;
   let pending = null;
   let running = false;
@@ -193,7 +212,41 @@
     return name === "Linear Regression" ? "Linear regression" : name;
   }
 
-  function renderFigures(row) {
+  const FIGURES = {
+    predicted: (v) => fmt(v),
+    actual: (v) => fmt(v),
+    error: (v) => (v >= 0 ? "+" : "−") + fmt(Math.abs(v), 3),
+    accuracy: (v) => fmt(v, 3),
+  };
+  const figureNow = {};
+  let figureAnim = null;
+  function setFigures(values, roll) {
+    if (figureAnim) cancelAnimationFrame(figureAnim);
+    const put = (vals) => Object.keys(FIGURES).forEach((k) => { el(k).textContent = FIGURES[k](vals[k]); figureNow[k] = vals[k]; });
+    if (!roll || reduceMotion.matches) { figuresWaiting = false; waiting.delete(figuresBox); put(values); return; }
+    // hold the previous numbers (zero the first time) until the figures are on screen, then count to the new ones
+    const from = {};
+    Object.keys(FIGURES).forEach((k) => { from[k] = figureNow[k] || 0; });
+    put(from);
+    figuresWaiting = true;
+    whenVisible(figuresBox, () => {
+      figuresWaiting = false;
+      results.setAttribute("aria-busy", "true"); // screen readers announce the final values only
+      const t0 = performance.now(), dur = 750;
+      const step = (t) => {
+        const k = Math.min(1, (t - t0) / dur);
+        const e = 1 - Math.pow(1 - k, 3);
+        const vals = {};
+        Object.keys(FIGURES).forEach((key) => { vals[key] = from[key] + (values[key] - from[key]) * e; });
+        put(k < 1 ? vals : values);
+        if (k < 1) figureAnim = requestAnimationFrame(step);
+        else { figureAnim = null; results.setAttribute("aria-busy", "false"); }
+      };
+      figureAnim = requestAnimationFrame(step);
+    });
+  }
+
+  function renderFigures(row, fresh) {
     const h = H[hz];
     const f = row.forecasts[hz];
     const mae = h.metrics.mae;
@@ -203,11 +256,9 @@
     el("row-note").textContent = `One of ${h.test_rows.toLocaleString("en-US")} held-out rows the model never trained on, picked at random.`;
     el("hero-name").textContent = `Predicted outlet temperature, ${words(h.minutes)} ahead`;
     el("actual-name").textContent = `Actual, ${words(h.minutes)} later`;
-    el("predicted").textContent = fmt(f.predicted);
-    el("actual").textContent = fmt(f.actual);
-    el("error").textContent = (err >= 0 ? "+" : "−") + fmt(Math.abs(err), 3);
     // accuracy of this one forecast: 100% minus its percentage error
-    el("accuracy").textContent = fmt(100 - (Math.abs(err) / Math.abs(f.actual)) * 100, 3);
+    setFigures({ predicted: f.predicted, actual: f.actual, error: err,
+      accuracy: 100 - (Math.abs(err) / Math.abs(f.actual)) * 100 }, fresh || figuresWaiting);
     const status = el("status");
     status.className = "status " + (within ? "is-good" : "is-warn");
     el("status-text").textContent = within
@@ -322,6 +373,7 @@
     const box = el("chart");
     box.innerHTML = "";
     const W = Math.max(300, box.clientWidth);
+    drawnWidth = W;
     const narrow = W < 520;
     const Hh = narrow ? 250 : 300;
     const m = { t: 30, r: 14, b: 32, l: 46 };
@@ -375,45 +427,67 @@
         class: "hz-lbl" + (on ? " on" : "") }, svg).textContent = narrow && t < 600 ? `+${h.minutes}` : `+${h.minutes} min`;
     });
 
-    // everything measured or forecast is drawn inside one group so a new row can wipe in along the time axis
-    const plot = svg;
-    const marks = node("g", {}, plot);
-    if (animate && !reduceMotion.matches) {
-      const clipId = "wipe" + Math.random().toString(36).slice(2, 8);
-      const clip = node("clipPath", { id: clipId }, svg);
-      const wipe = node("rect", { x: m.l - 10, y: 0, width: pw + 30, height: Hh }, clip);
-      wipe.style.transformBox = "fill-box";
-      wipe.style.transformOrigin = "0 0";
-      marks.setAttribute("clip-path", `url(#${clipId})`);
-      const anim = wipe.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }],
-        { duration: 1100, easing: "cubic-bezier(.3, 0, .2, 1)" });
-      anim.onfinish = () => { marks.removeAttribute("clip-path"); clip.remove(); };
-    }
+    // A new test row plays once: the measured line draws itself up to Now, then the forecast and what was
+    // measured next extend together, each point popping in as the front reaches it. Then the chart stays still.
+    const marks = node("g", {}, svg);
+    const anims = [];
+    const moving = animate && !reduceMotion.matches && typeof svg.animate === "function";
+    const T1 = 500, T2 = 750;
+    const reach = (t) => T1 + (t / 600) * T2;
+    const tween = (n, frames, opts) => {
+      if (!moving) return;
+      const a = n.animate(frames, Object.assign({ fill: "both" }, opts));
+      a.pause();
+      anims.push(a);
+    };
+    const pop = (n, delay) => {
+      n.style.transformBox = "fill-box";
+      n.style.transformOrigin = "center";
+      tween(n, [{ transform: "scale(0)", opacity: 0 }, { transform: "scale(1.4)", opacity: 1, offset: 0.65 },
+        { transform: "scale(1)", opacity: 1 }], { duration: 260, delay });
+    };
 
     // ± mean error band around each forecast
     fc.forEach(({ t, h, f, on }) => {
-      node("rect", { x: sx(t) - 7, width: 14, y: sy(f.predicted + h.metrics.mae),
+      const band = node("rect", { x: sx(t) - 7, width: 14, y: sy(f.predicted + h.metrics.mae),
         height: sy(f.predicted - h.metrics.mae) - sy(f.predicted + h.metrics.mae),
         rx: 4, fill: "var(--ink)", "fill-opacity": on ? 0.13 : 0.06 }, marks);
+      tween(band, [{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: reach(t) });
     });
 
+    // everything after Now sits in one group, uncovered from Now to the right
+    const ahead_g = node("g", {}, marks);
+    if (moving) {
+      const clipId = "front" + Math.random().toString(36).slice(2, 8);
+      const cover = node("rect", { x: sx(0), y: 0, width: sx(600) - sx(0) + 12, height: Hh }, node("clipPath", { id: clipId }, svg));
+      cover.style.transformBox = "fill-box";
+      cover.style.transformOrigin = "0 0";
+      ahead_g.setAttribute("clip-path", `url(#${clipId})`);
+      tween(cover, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: T2, delay: T1, easing: "linear" });
+    }
     // what actually happened next
     node("path", { d: ahead.map((p, k) => (k ? "L" : "M") + sx(p[0]) + " " + sy(p[1])).join(" "), fill: "none",
-      stroke: "var(--steam)", "stroke-opacity": 0.45, "stroke-width": 1.5, "stroke-linejoin": "round" }, marks);
+      stroke: "var(--steam)", "stroke-opacity": 0.45, "stroke-width": 1.5, "stroke-linejoin": "round" }, ahead_g);
     // forecast path through the three forecasts
     node("path", { d: `M${sx(0)} ${sy(now[1])} ` + fc.map(({ t, f }) => `L${sx(t)} ${sy(f.predicted)}`).join(" "),
-      fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "4 4" }, marks);
+      fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "4 4" }, ahead_g);
+
     // the measured past
-    node("path", { d: past.map((p, k) => (k ? "L" : "M") + sx(p[0]) + " " + sy(p[1])).join(" "), fill: "none",
+    const pastLine = node("path", { d: past.map((p, k) => (k ? "L" : "M") + sx(p[0]) + " " + sy(p[1])).join(" "), fill: "none",
       stroke: "var(--steam)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, marks);
-    node("circle", { cx: sx(0), cy: sy(now[1]), r: 4.5, fill: "var(--steam)", stroke: "#fff", "stroke-width": 2 }, marks);
+    if (moving) {
+      pastLine.setAttribute("pathLength", 1);
+      pastLine.setAttribute("stroke-dasharray", "1 1");
+      tween(pastLine, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: T1, easing: "cubic-bezier(.35, 0, .3, 1)" });
+    }
+    pop(node("circle", { cx: sx(0), cy: sy(now[1]), r: 4.5, fill: "var(--steam)", stroke: "#fff", "stroke-width": 2 }, marks), T1 - 140);
 
     fc.forEach(({ t, f, on }) => {
       const r = on ? 5.5 : 4;
-      node("circle", { cx: sx(t), cy: sy(f.actual), r, fill: "var(--steam)", "fill-opacity": on ? 1 : 0.55,
-        stroke: "#fff", "stroke-width": 2 }, marks);
-      node("circle", { cx: sx(t), cy: sy(f.predicted), r, fill: "#fff", stroke: on ? "var(--ink)" : "var(--ink-2)",
-        "stroke-opacity": on ? 1 : 0.6, "stroke-width": 2 }, marks);
+      pop(node("circle", { cx: sx(t), cy: sy(f.actual), r, fill: "var(--steam)", "fill-opacity": on ? 1 : 0.55,
+        stroke: "#fff", "stroke-width": 2 }, marks), reach(t));
+      pop(node("circle", { cx: sx(t), cy: sy(f.predicted), r, fill: "#fff", stroke: on ? "var(--ink)" : "var(--ink-2)",
+        "stroke-opacity": on ? 1 : 0.6, "stroke-width": 2 }, marks), reach(t));
     });
 
     // hover and keyboard targets bigger than the marks
@@ -440,6 +514,15 @@
     });
 
     box.append(svg, tip);
+    return moving ? () => anims.forEach((a) => a.play()) : null;
+  }
+
+  // draws the chart; a new row waits until the chart is on screen, then plays once
+  function renderChart(row, animate) {
+    const play = drawChart(row, animate);
+    chartWaiting = Boolean(play);
+    if (play) whenVisible(el("chart"), () => { chartWaiting = false; play(); });
+    else waiting.delete(el("chart"));
   }
 
   function show(row) {
@@ -456,8 +539,8 @@
       void body.offsetWidth; // restart the crossfade
       body.classList.add("swap");
     }
-    renderFigures(row);
-    drawChart(row, fresh);
+    renderFigures(row, fresh);
+    renderChart(row, fresh || chartWaiting);
     renderMoment(row);
     renderInputs(row);
     countTo(row.forecasts[hz].predicted);
@@ -513,8 +596,8 @@
 
   let resizeTimer = null;
   new ResizeObserver(() => {
-    if (!shown) return;
+    if (!shown || Math.max(300, el("chart").clientWidth) === drawnWidth) return;
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => drawChart(shown), 80);
+    resizeTimer = setTimeout(() => renderChart(shown, chartWaiting), 80);
   }).observe(el("chart"));
 })();

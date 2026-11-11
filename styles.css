@@ -458,7 +458,7 @@ h2 #row-id { font-variant-numeric: tabular-nums; }
   transition: stroke-dashoffset calc(var(--len) * 1.7ms) cubic-bezier(.45, 0, .55, 1) var(--d);
 }
 
-.motes circle { opacity: 0; }
+.motes circle { opacity: 0; stroke-width: 1.5; }
 
 /* the readout wakes last, when steam reaches it, and flashes whenever its value changes */
 .running .readout rect { transition-delay: 2.1s; filter: drop-shadow(0 0 6px rgba(191, 42, 69, .28)); }

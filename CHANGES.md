@@ -30,11 +30,16 @@ The page keeps the original dashboard design, with these changes:
 - **Inputs panel** shows °C beside every temperature. Other sensors have no unit because the data set does not record one; add `"units": { "sensor name": "unit" }` to `data.js` and the page will show them.
 - **Boiler drawing** on small screens has a soft right edge to show that it scrolls, and can be scrolled from the keyboard.
 
-## Motion and look of the boiler panel
-- **Dark panel.** The boiler is drawn like a control room mimic screen, with the four process streams as the only colour. The rest of the page stays light.
-- **Start-up sequence.** Flames catch from the bed upward, the furnace throws light on its surroundings, each stream fills its pipe from the source, and the steam readout lights last, when steam reaches it.
+## Motion on the boiler panel
+- **Light panel.** The boiler keeps its original white drawing and colours.
+- **Start-up sequence.** Flames catch from the bed upward, the furnace throws a warm glow, each stream fills its pipe from the source, and the steam readout lights last, when steam reaches it.
 - **Moving particles.** Flue gas cools from orange to grey as it passes the heat exchanger banks; bed solids rise in the furnace, spin down the cyclones and return; air, feed water and steam travel their pipes.
 - **Small screens.** The drawing pans from the coal feed to the steam readout when the boiler starts, and back when it stops. Touching the drawing cancels the pan.
-- **Chart.** A new test row wipes in along the time axis. Switching horizon does not replay it.
-- **Readout** flashes whenever its value changes.
-- All of this is switched off for visitors who ask their device for reduced motion.
+- **Readout** flashes whenever its value changes, and the start button pulses softly until the boiler is started.
+
+## Dashboard
+- **Accuracy.** A third figure beside "Actual" and "Error" gives the accuracy of this forecast (100% minus its percentage error). The table has an "Accuracy" column beside "Mean absolute error" with the model's accuracy over the whole test set.
+- **Graph animation.** For each new test row, once the graph is on screen: the measured line draws itself up to "Now", then the dashed forecast and the lighter line of what was measured next extend together to 1, 5 and 10 minutes, each point popping in as it is reached. It takes about 1.3 seconds and the graph then stays still. Switching horizon does not replay it.
+- **Numbers count up.** Predicted, actual, error and accuracy count to their values when a new test row loads and the figures are on screen.
+
+All motion is switched off for visitors who ask their device for reduced motion.
