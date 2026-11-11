@@ -45,6 +45,107 @@
   const pipes = plant.querySelector(".pipes");
   plant.querySelectorAll(".flow path").forEach((p) => pipes.appendChild(p.cloneNode()));
 
+  // a band of colour per stream that runs down its pipe from the source when the boiler starts
+  const fills = plant.querySelector(".fills");
+  plant.querySelectorAll(".flow").forEach((g) => {
+    const layer = node("g", { class: "fill " + g.classList[1] }, fills);
+    layer.style.setProperty("--d", g.style.getPropertyValue("--d"));
+    g.querySelectorAll("path").forEach((p) => {
+      const c = p.cloneNode();
+      c.setAttribute("pathLength", 1);
+      c.style.setProperty("--len", Math.round(p.getTotalLength()));
+      layer.appendChild(c);
+    });
+  });
+
+  // --- moving particles: gas, air, water, steam and the circulating bed solids ---
+  // Each stream is a path; particles ride along it. Flue gas cools from orange to grey as it
+  // gives up heat to the banks, and bed solids rise in the furnace, spin down a cyclone and return.
+  const HOT = [255, 170, 84], COOL = [146, 163, 181];
+  const STREAMS = [
+    { d: "M230 70 V40 H710 V388 H903", n: 16, dur: 6.4, delay: 0.55, r: 2.2, kind: "flue" },
+    { d: "M230 405 V40 H390 V236 V380 H300 L246 408", n: 9, dur: 7.5, delay: 0.9, r: 1.7, kind: "solid", fill: "#E9C9A4" },
+    { d: "M230 405 V40 H480 V236 V380 H300 L246 408", n: 8, dur: 8.6, delay: 0.9, r: 1.7, kind: "solid", fill: "#E9C9A4" },
+    { d: "M644 371 H596 V456 H230 V440", n: 8, dur: 4.6, delay: 0, r: 2, fill: "var(--air)" },
+    { d: "M680 439 V382", n: 2, dur: 1.5, delay: 0, r: 2, fill: "var(--air)" },
+    { d: "M740 439 V382", n: 2, dur: 1.5, delay: 0, r: 2, fill: "var(--air)" },
+    { d: "M990 241 H776", n: 4, dur: 3.6, delay: 0.8, r: 2.2, fill: "var(--water)" },
+    { d: "M776 135 H858", n: 3, dur: 1.3, delay: 1.9, r: 2.2, fill: "var(--steam)" },
+  ];
+  const moteLayer = plant.querySelector(".motes");
+  const motes = [];
+  STREAMS.forEach((st) => {
+    st.path = node("path", { d: st.d, fill: "none", stroke: "none" }, moteLayer);
+    st.len = st.path.getTotalLength();
+    st.gain = 0;
+    for (let k = 0; k < st.n; k++) {
+      const halo = node("circle", { r: st.r * 2.6 }, moteLayer);
+      const core = node("circle", { r: st.r }, moteLayer);
+      if (st.fill) { halo.style.fill = st.fill; core.style.fill = st.fill; }
+      motes.push({ st, halo, core, off: (k + Math.random() * 0.7) / st.n, jit: Math.random() * 2 - 1, ph: Math.random() * 6.28 });
+    }
+  });
+
+  let startedAt = 0, lastT = 0, moteFrame = null, plantVisible = true;
+  new IntersectionObserver((entries) => { plantVisible = entries[0].isIntersecting; }).observe(plant);
+
+  function moveMotes(now) {
+    const t = now / 1000;
+    const dt = Math.min(0.05, t - lastT || 0.016);
+    lastT = t;
+    let alive = false;
+    STREAMS.forEach((st) => {
+      const target = running && t - startedAt > st.delay ? 1 : 0;
+      st.gain += (target - st.gain) * Math.min(1, dt * (target ? 1.6 : 4));
+      if (st.gain > 0.01 || target) alive = true;
+    });
+    if (plantVisible) {
+      motes.forEach((m) => {
+        const st = m.st;
+        const p = (t / st.dur + m.off) % 1;
+        const pt = st.path.getPointAtLength(p * st.len);
+        let x = pt.x, y = pt.y;
+        if (st.kind === "solid") {
+          if (x < 231 && y > 60) x += m.jit * 42 + Math.sin(t * 4 + m.ph) * 8;          // fluidised bed in the furnace
+          else if (y > 100 && y < 236 && x > 380) {                                        // spinning down a cyclone
+            x += Math.sin(t * 13 + m.ph) * (y < 160 ? 24 : (24 * (236 - y)) / 76);
+          }
+        } else if (st.kind === "flue") {
+          x += m.jit * 2.5; y += Math.cos(m.ph) * 2.5;
+          const k = Math.min(1, p * 1.25);
+          const c = HOT.map((h, i) => Math.round(h + (COOL[i] - h) * k));
+          m.core.style.fill = m.halo.style.fill = `rgb(${c[0]},${c[1]},${c[2]})`;
+        }
+        const edge = Math.min(1, p / 0.05, (1 - p) / 0.05);
+        const a = st.gain * edge;
+        m.core.setAttribute("cx", x); m.core.setAttribute("cy", y);
+        m.halo.setAttribute("cx", x); m.halo.setAttribute("cy", y);
+        m.core.style.opacity = a;
+        m.halo.style.opacity = a * 0.22;
+      });
+    }
+    moteFrame = alive ? requestAnimationFrame(moveMotes) : null;
+  }
+
+  // on a narrow screen the drawing is wider than the panel: follow the process from the coal feed to the steam readout
+  const drawing = plant.querySelector(".drawing");
+  let panFrame = null;
+  const stopPan = () => { if (panFrame) cancelAnimationFrame(panFrame); panFrame = null; };
+  ["pointerdown", "wheel", "touchstart", "keydown"].forEach((ev) => drawing.addEventListener(ev, stopPan, { passive: true }));
+  function panDrawing(to, delay, dur) {
+    stopPan();
+    const from = drawing.scrollLeft;
+    if (Math.abs(to - from) < 4) return;
+    const t0 = performance.now() + delay;
+    const step = (t) => {
+      const k = Math.min(1, Math.max(0, (t - t0) / dur));
+      drawing.scrollLeft = from + (to - from) * (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+      panFrame = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    panFrame = requestAnimationFrame(step);
+  }
+  const drawingOverflow = () => drawing.scrollWidth - drawing.clientWidth;
+
   let current = -1;
   let shown = null;
   let tempAnim = null;
@@ -58,8 +159,12 @@
     return D.rows[i];
   }
 
+  const readout = plant.querySelector(".readout");
   function countTo(target) {
     if (tempAnim) cancelAnimationFrame(tempAnim);
+    readout.classList.remove("tick");
+    void readout.getBoundingClientRect(); // restart the flash
+    readout.classList.add("tick");
     if (reduceMotion.matches) { liveVal.textContent = fmt(target, 1); return; }
     const from = parseFloat(liveVal.textContent.replace("−", "-").replace(/,/g, "")) || target - 6;
     const t0 = performance.now(), dur = 1100;
@@ -211,7 +316,7 @@
     return steps.find((s) => span / s <= 6) || 10;
   }
 
-  function drawChart(row) {
+  function drawChart(row, animate) {
     const box = el("chart");
     box.innerHTML = "";
     const W = Math.max(300, box.clientWidth);
@@ -268,30 +373,45 @@
         class: "hz-lbl" + (on ? " on" : "") }, svg).textContent = narrow && t < 600 ? `+${h.minutes}` : `+${h.minutes} min`;
     });
 
+    // everything measured or forecast is drawn inside one group so a new row can wipe in along the time axis
+    const plot = svg;
+    const marks = node("g", {}, plot);
+    if (animate && !reduceMotion.matches) {
+      const clipId = "wipe" + Math.random().toString(36).slice(2, 8);
+      const clip = node("clipPath", { id: clipId }, svg);
+      const wipe = node("rect", { x: m.l - 10, y: 0, width: pw + 30, height: Hh }, clip);
+      wipe.style.transformBox = "fill-box";
+      wipe.style.transformOrigin = "0 0";
+      marks.setAttribute("clip-path", `url(#${clipId})`);
+      const anim = wipe.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }],
+        { duration: 1100, easing: "cubic-bezier(.3, 0, .2, 1)" });
+      anim.onfinish = () => { marks.removeAttribute("clip-path"); clip.remove(); };
+    }
+
     // ± mean error band around each forecast
     fc.forEach(({ t, h, f, on }) => {
       node("rect", { x: sx(t) - 7, width: 14, y: sy(f.predicted + h.metrics.mae),
         height: sy(f.predicted - h.metrics.mae) - sy(f.predicted + h.metrics.mae),
-        rx: 4, fill: "var(--ink)", "fill-opacity": on ? 0.13 : 0.06 }, svg);
+        rx: 4, fill: "var(--ink)", "fill-opacity": on ? 0.13 : 0.06 }, marks);
     });
 
     // what actually happened next
     node("path", { d: ahead.map((p, k) => (k ? "L" : "M") + sx(p[0]) + " " + sy(p[1])).join(" "), fill: "none",
-      stroke: "var(--steam)", "stroke-opacity": 0.45, "stroke-width": 1.5, "stroke-linejoin": "round" }, svg);
+      stroke: "var(--steam)", "stroke-opacity": 0.45, "stroke-width": 1.5, "stroke-linejoin": "round" }, marks);
     // forecast path through the three forecasts
     node("path", { d: `M${sx(0)} ${sy(now[1])} ` + fc.map(({ t, f }) => `L${sx(t)} ${sy(f.predicted)}`).join(" "),
-      fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "4 4" }, svg);
+      fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "4 4" }, marks);
     // the measured past
     node("path", { d: past.map((p, k) => (k ? "L" : "M") + sx(p[0]) + " " + sy(p[1])).join(" "), fill: "none",
-      stroke: "var(--steam)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
-    node("circle", { cx: sx(0), cy: sy(now[1]), r: 4.5, fill: "var(--steam)", stroke: "#fff", "stroke-width": 2 }, svg);
+      stroke: "var(--steam)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, marks);
+    node("circle", { cx: sx(0), cy: sy(now[1]), r: 4.5, fill: "var(--steam)", stroke: "#fff", "stroke-width": 2 }, marks);
 
     fc.forEach(({ t, f, on }) => {
       const r = on ? 5.5 : 4;
       node("circle", { cx: sx(t), cy: sy(f.actual), r, fill: "var(--steam)", "fill-opacity": on ? 1 : 0.55,
-        stroke: "#fff", "stroke-width": 2 }, svg);
+        stroke: "#fff", "stroke-width": 2 }, marks);
       node("circle", { cx: sx(t), cy: sy(f.predicted), r, fill: "#fff", stroke: on ? "var(--ink)" : "var(--ink-2)",
-        "stroke-opacity": on ? 1 : 0.6, "stroke-width": 2 }, svg);
+        "stroke-opacity": on ? 1 : 0.6, "stroke-width": 2 }, marks);
     });
 
     // hover and keyboard targets bigger than the marks
@@ -321,6 +441,7 @@
   }
 
   function show(row) {
+    const fresh = row !== shown;
     shown = row;
     const first = results.hidden;
     results.hidden = false;
@@ -334,7 +455,7 @@
       body.classList.add("swap");
     }
     renderFigures(row);
-    drawChart(row);
+    drawChart(row, fresh);
     renderMoment(row);
     renderInputs(row);
     countTo(row.forecasts[hz].predicted);
@@ -343,6 +464,13 @@
   function setRunning(on) {
     running = on;
     plant.classList.toggle("running", on);
+    if (reduceMotion.matches) {
+      if (on && drawingOverflow() > 4) drawing.scrollLeft = drawingOverflow();
+    } else {
+      if (on) startedAt = performance.now() / 1000;
+      if (!moteFrame) { lastT = 0; moteFrame = requestAnimationFrame(moveMotes); }
+      if (drawingOverflow() > 4) on ? panDrawing(drawingOverflow(), 500, 2300) : panDrawing(0, 0, 900);
+    }
     powerBtn.setAttribute("aria-pressed", String(on));
     powerLabel.textContent = on ? "Stop the boiler" : "Start the boiler";
   }
@@ -352,11 +480,14 @@
     setRunning(!running);
     if (!running) return;
     const first = results.hidden;
-    // let the fire catch and the steam line warm up before the numbers arrive
+    const quick = reduceMotion.matches;
+    // let the fire catch and every stream reach the end of its pipe before the numbers arrive
     pending = setTimeout(() => {
       show(pickRow());
-      if (first) results.scrollIntoView({ behavior: reduceMotion.matches ? "auto" : "smooth", block: "start" });
-    }, first ? 1400 : 500);
+      if (!first) return;
+      // give the readout a moment on screen, then bring the results into view
+      pending = setTimeout(() => results.scrollIntoView({ behavior: quick ? "auto" : "smooth", block: "start" }), quick ? 0 : 1500);
+    }, quick ? 300 : first ? (drawingOverflow() > 4 ? 2900 : 2500) : 600);
   });
 
   el("another").addEventListener("click", () => show(pickRow()));

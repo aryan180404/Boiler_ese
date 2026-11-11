@@ -36,16 +36,30 @@
             <stop offset="1" stop-color="#FFE8CC" stop-opacity="0"/>
           </radialGradient>
           <pattern id="tubes" width="11" height="10" patternUnits="userSpaceOnUse" x="650">
-            <path d="M5.5 0 V10" stroke="#C3CCD5" stroke-width="1.5"/>
+            <path d="M5.5 0 V10" stroke="#3B4D5F" stroke-width="1.5"/>
           </pattern>
+          <radialGradient id="gAmbient" cx=".5" cy=".5" r=".5" fx=".5" fy=".72">
+            <stop offset="0" stop-color="#FF8A3D" stop-opacity=".42"/>
+            <stop offset=".55" stop-color="#FF8A3D" stop-opacity=".12"/>
+            <stop offset="1" stop-color="#FF8A3D" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="bloom" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
           <clipPath id="furnaceClip"><rect x="161" y="71" width="138" height="368" rx="25"/></clipPath>
         </defs>
+
+        <!-- light the fire throws on everything around the furnace -->
+        <ellipse class="ambient" cx="230" cy="296" rx="228" ry="192" fill="url(#gAmbient)"/>
 
         <!-- heat recovery pass body sits under the flue gas that runs through it -->
         <rect class="shell" x="620" y="96" width="180" height="304" rx="18"/>
 
         <!-- pipes are cloned from the flow paths by app.js -->
         <g class="pipes"></g>
+        <!-- each stream fills its pipe from the source once the boiler runs; built by app.js -->
+        <g class="fills"></g>
         <g class="flow air" style="--d:0s">
           <path d="M680 439 V382"/>
           <path d="M740 439 V382"/>
@@ -115,7 +129,7 @@
           <rect class="shell" x="160" y="70" width="140" height="370" rx="26"/>
           <g clip-path="url(#furnaceClip)">
             <rect class="glow" x="160" y="190" width="140" height="250" fill="url(#gHeat)"/>
-            <g class="fire" transform="translate(230 436) scale(1.2)">
+            <g class="fire" transform="translate(230 436) scale(1.2)" filter="url(#bloom)">
               <path class="f f1" d="M-46 0 C-52 -40 -30 -56 -26 -92 C-10 -70 -4 -58 0 -40 C8 -70 16 -82 26 -102 C32 -64 54 -40 46 0 Z" fill="url(#gFlame)"/>
               <path class="f f2" d="M-34 0 C-38 -30 -22 -44 -16 -70 C-6 -54 -2 -44 2 -30 C8 -52 14 -62 20 -78 C26 -50 40 -30 34 0 Z" fill="#FFC53D" opacity=".85"/>
               <path class="f f3" d="M-18 0 C-20 -18 -10 -26 -6 -40 C0 -30 2 -24 4 -16 C8 -30 12 -36 14 -46 C16 -26 22 -16 18 0 Z" fill="#FFF3BF" opacity=".95"/>
@@ -128,6 +142,9 @@
           </g>
           <text x="230" y="110" class="lbl big" text-anchor="middle">Furnace</text>
         </g>
+
+        <!-- moving gas, air, water, steam and bed solids; drawn by app.js -->
+        <g class="motes" aria-hidden="true"></g>
 
         <!-- fans: two push combustion air, the induced draft fan pulls flue gas -->
         <g class="fan air-fan" transform="translate(680 452)">

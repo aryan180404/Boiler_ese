@@ -29,3 +29,12 @@ The page keeps the original dashboard design, with these changes:
 - **"This moment at every horizon"** becomes one card per horizon on screens narrower than 720 pixels, so no column is cut off. Wider screens keep the table.
 - **Inputs panel** shows °C beside every temperature. Other sensors have no unit because the data set does not record one; add `"units": { "sensor name": "unit" }` to `data.js` and the page will show them.
 - **Boiler drawing** on small screens has a soft right edge to show that it scrolls, and can be scrolled from the keyboard.
+
+## Motion and look of the boiler panel
+- **Dark panel.** The boiler is drawn like a control room mimic screen, with the four process streams as the only colour. The rest of the page stays light.
+- **Start-up sequence.** Flames catch from the bed upward, the furnace throws light on its surroundings, each stream fills its pipe from the source, and the steam readout lights last, when steam reaches it.
+- **Moving particles.** Flue gas cools from orange to grey as it passes the heat exchanger banks; bed solids rise in the furnace, spin down the cyclones and return; air, feed water and steam travel their pipes.
+- **Small screens.** The drawing pans from the coal feed to the steam readout when the boiler starts, and back when it stops. Touching the drawing cancels the pan.
+- **Chart.** A new test row wipes in along the time axis. Switching horizon does not replay it.
+- **Readout** flashes whenever its value changes.
+- All of this is switched off for visitors who ask their device for reduced motion.
