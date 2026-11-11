@@ -46,3 +46,4 @@ The page keeps the original dashboard design, with these changes:
 - **Footnote removed.** The long paragraph under the inputs is gone. The one fact not shown elsewhere, which sensors each horizon uses, is now a sentence under "What the model saw".
 
 All motion is switched off for visitors who ask their device for reduced motion.
+- **Table headings carry the unit:** "Actual °C", "Predicted °C" and "MAE °C", so the cells hold only numbers. "Mean absolute error" is shortened to MAE and spelled out in the note under the table.

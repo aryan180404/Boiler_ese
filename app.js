@@ -281,10 +281,10 @@
       const gain = h.improvement_percent > 0
         ? [`${fmt(h.improvement_percent, 1)}% lower error`, "n gain"]
         : ["Is linear regression", "n same"];
-      const labels = ["", "", "Actual", "Predicted", "Mean absolute error", "Accuracy", "Better than linear regression alone"];
+      const labels = ["", "", "Actual °C", "Predicted °C", "MAE °C", "Accuracy", "Better than linear regression alone"];
       [[h.minutes === 1 ? "1 minute" : `${h.minutes} minutes`, ""], [shortModel, ""],
-       [`${fmt(f.actual)} °C`, "n"], [`${fmt(f.predicted)} °C`, "n"],
-       [`${fmt(h.metrics.mae, 3)} °C`, "n"], [`${fmt(h.metrics.accuracy, 2)}%`, "n"], gain].forEach(([text, cls], c) => {
+       [fmt(f.actual), "n"], [fmt(f.predicted), "n"],
+       [fmt(h.metrics.mae, 3), "n"], [`${fmt(h.metrics.accuracy, 2)}%`, "n"], gain].forEach(([text, cls], c) => {
         const td = document.createElement("td");
         td.textContent = text;
         if (cls) td.className = cls;

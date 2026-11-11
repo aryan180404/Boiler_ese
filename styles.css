@@ -487,8 +487,10 @@ h2 #row-id { font-variant-numeric: tabular-nums; }
 .results-body { grid-template-columns: minmax(280px, 390px) 1fr; }
 @media (max-width: 860px) { .results-body { grid-template-columns: 1fr; } }
 @media (max-width: 400px) { .fig .num.small { font-size: 1.45rem; } .fig-pair { gap: 10px; } }
-.moment table { min-width: 720px; }
+.moment table { min-width: 640px; }
 @media (max-width: 720px) {
   .moment table { min-width: 0; }
   .moment td:last-child { grid-column: 1 / -1; }
 }
+
+.moment abbr { text-decoration: none; }
