@@ -24,3 +24,8 @@ The page keeps the original dashboard design, with these changes:
 - **New table, "This moment at every horizon"**: for the current test row it shows the actual and predicted value at 1, 5 and 10 minutes, the model's mean absolute error, and how much lower that error is than linear regression alone. Clicking a row switches to that horizon.
 - **Inputs panel** lists the inputs the selected horizon uses (21 at 1 minute, 35 at 5 and 10). The footnote gives that horizon's scores and explains which sensors it uses.
 - **Boiler drawing, animation, colours and fonts** are unchanged.
+
+## Small-screen and units fixes
+- **"This moment at every horizon"** becomes one card per horizon on screens narrower than 720 pixels, so no column is cut off. Wider screens keep the table.
+- **Inputs panel** shows °C beside every temperature. Other sensors have no unit because the data set does not record one; add `"units": { "sensor name": "unit" }` to `data.js` and the page will show them.
+- **Boiler drawing** on small screens has a soft right edge to show that it scrolls, and can be scrolled from the keyboard.

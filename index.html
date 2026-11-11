@@ -22,7 +22,7 @@
 
 <main>
   <section class="sheet plant" id="plant" aria-label="Boiler schematic">
-    <div class="drawing">
+    <div class="drawing" tabindex="0" role="group" aria-label="Boiler schematic, scrolls sideways on small screens">
       <svg viewBox="0 0 1000 490" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated schematic of the boiler: coal feed, furnace, cyclones, heat recovery pass with superheaters, economisers and air preheaters, fans and chimney">
         <defs>
           <linearGradient id="gFlame" x1="0" y1="1" x2="0" y2="0">
@@ -241,7 +241,7 @@
 
   <section class="inputs" id="inputs" hidden>
     <h2>What the model saw</h2>
-    <p class="sub" id="inputs-sub">All inputs at this moment, in their original units, grouped by part of the boiler.</p>
+    <p class="sub" id="inputs-sub">All inputs at this moment, as recorded by the plant sensors (temperatures in °C), grouped by part of the boiler.</p>
     <div class="groups" id="input-groups"></div>
     <p class="footnote" id="footnote"></p>
   </section>

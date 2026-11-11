@@ -20,6 +20,10 @@
   const minutesText = (m) => (m === 1 ? "1 minute" : `${m} minutes`);
   const targetIdx = D.features.indexOf(D.target);
   const lagSeconds = (name) => Number(name.match(/lag(\d+)/)[1]) * D.seconds_per_step;
+  // unit shown beside an input: data.js may supply D.units = { "sensor name": "unit" };
+  // otherwise only temperatures are labelled, because the data set records them in °C
+  const unitOf = (name) =>
+    (D.units && D.units[name]) || (/temperature/i.test(name) && !/valve/i.test(name) ? "°C" : "");
 
   // outlet temperature history from the model inputs, oldest first: [feature index, seconds before now]
   const history = D.features
@@ -120,12 +124,14 @@
       const gain = h.improvement_percent > 0
         ? [`${fmt(h.improvement_percent, 1)}% lower error`, "n gain"]
         : ["Is linear regression", "n same"];
+      const labels = ["", "", "Actual", "Predicted", "Mean absolute error", "Better than linear regression alone"];
       [[h.minutes === 1 ? "1 minute" : `${h.minutes} minutes`, ""], [shortModel, ""],
        [`${fmt(f.actual)} °C`, "n"], [`${fmt(f.predicted)} °C`, "n"],
-       [`${fmt(h.metrics.mae, 3)} °C`, "n"], gain].forEach(([text, cls]) => {
+       [`${fmt(h.metrics.mae, 3)} °C`, "n"], gain].forEach(([text, cls], c) => {
         const td = document.createElement("td");
         td.textContent = text;
         if (cls) td.className = cls;
+        if (labels[c]) td.dataset.label = labels[c];
         tr.appendChild(td);
       });
       tr.style.cursor = "pointer";
@@ -139,13 +145,13 @@
     wrap.innerHTML = "";
     const sections = [{
       title: "Outlet steam temperature",
-      rows: history.slice().reverse().map(([i, s]) => [s === 0 ? "Now" : `${s} s earlier`, row.inputs[i]]),
+      rows: history.slice().reverse().map(([i, s]) => [s === 0 ? "Now" : `${s} s earlier`, row.inputs[i], "°C"]),
     }];
     const buckets = GROUPS.map((g) => ({ title: g.title, rows: [] }));
     const used = new Set(H[hz].inputs_used);
     D.features.slice(0, nSensor).forEach((name, i) => {
       if (i === targetIdx || !used.has(i)) return;
-      buckets[GROUPS.findIndex((g) => g.test(name))].rows.push([name, row.inputs[i]]);
+      buckets[GROUPS.findIndex((g) => g.test(name))].rows.push([name, row.inputs[i], unitOf(name)]);
     });
     // most relevant to the steam first
     [2, 3, 4, 0, 1].forEach((k) => sections.push(buckets[k]));
@@ -157,13 +163,19 @@
       h.textContent = sec.title;
       const table = document.createElement("table");
       const body = document.createElement("tbody");
-      sec.rows.forEach(([label, v]) => {
+      sec.rows.forEach(([label, v, unit]) => {
         const tr = document.createElement("tr");
         const a = document.createElement("td");
         const b = document.createElement("td");
         a.textContent = label;
         b.className = "v";
         b.textContent = fmt(v, 2);
+        if (unit) {
+          const u = document.createElement("span");
+          u.className = "u";
+          u.textContent = " " + unit;
+          b.appendChild(u);
+        }
         tr.append(a, b);
         body.appendChild(tr);
       });
@@ -175,7 +187,7 @@
     const h = H[hz];
     const lin = h.linear_metrics;
     el("inputs-sub").textContent =
-      `All ${h.inputs_used.length} inputs the ${words(h.minutes)} forecast uses at this moment, in their original units, grouped by part of the boiler.`;
+      `All ${h.inputs_used.length} inputs the ${words(h.minutes)} forecast uses at this moment, as recorded by the plant sensors (temperatures in °C), grouped by part of the boiler.`;
     el("footnote").textContent =
       `Over all ${h.test_rows.toLocaleString("en-US")} test rows the model's mean absolute error ${words(h.minutes)} ahead is ` +
       `${fmt(h.metrics.mae, 3)} °C, root mean squared error ${fmt(h.metrics.rmse, 3)} °C and R² ${fmt(h.metrics.r2, 4)}` +
