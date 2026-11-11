@@ -61,11 +61,11 @@
   // --- moving particles: gas, air, water, steam and the circulating bed solids ---
   // Each stream is a path; particles ride along it. Flue gas cools from orange to grey as it
   // gives up heat to the banks, and bed solids rise in the furnace, spin down a cyclone and return.
-  const HOT = [255, 170, 84], COOL = [146, 163, 181];
+  const HOT = [236, 112, 22], COOL = [134, 150, 166];
   const STREAMS = [
     { d: "M230 70 V40 H710 V388 H903", n: 16, dur: 6.4, delay: 0.55, r: 2.2, kind: "flue" },
-    { d: "M230 405 V40 H390 V236 V380 H300 L246 408", n: 9, dur: 7.5, delay: 0.9, r: 1.7, kind: "solid", fill: "#E9C9A4" },
-    { d: "M230 405 V40 H480 V236 V380 H300 L246 408", n: 8, dur: 8.6, delay: 0.9, r: 1.7, kind: "solid", fill: "#E9C9A4" },
+    { d: "M230 405 V40 H390 V236 V380 H300 L246 408", n: 9, dur: 7.5, delay: 0.9, r: 1.7, kind: "solid", fill: "#A9773F" },
+    { d: "M230 405 V40 H480 V236 V380 H300 L246 408", n: 8, dur: 8.6, delay: 0.9, r: 1.7, kind: "solid", fill: "#A9773F" },
     { d: "M644 371 H596 V456 H230 V440", n: 8, dur: 4.6, delay: 0, r: 2, fill: "var(--air)" },
     { d: "M680 439 V382", n: 2, dur: 1.5, delay: 0, r: 2, fill: "var(--air)" },
     { d: "M740 439 V382", n: 2, dur: 1.5, delay: 0, r: 2, fill: "var(--air)" },
@@ -206,6 +206,8 @@
     el("predicted").textContent = fmt(f.predicted);
     el("actual").textContent = fmt(f.actual);
     el("error").textContent = (err >= 0 ? "+" : "−") + fmt(Math.abs(err), 3);
+    // accuracy of this one forecast: 100% minus its percentage error
+    el("accuracy").textContent = fmt(100 - (Math.abs(err) / Math.abs(f.actual)) * 100, 3);
     const status = el("status");
     status.className = "status " + (within ? "is-good" : "is-warn");
     el("status-text").textContent = within
@@ -229,10 +231,10 @@
       const gain = h.improvement_percent > 0
         ? [`${fmt(h.improvement_percent, 1)}% lower error`, "n gain"]
         : ["Is linear regression", "n same"];
-      const labels = ["", "", "Actual", "Predicted", "Mean absolute error", "Better than linear regression alone"];
+      const labels = ["", "", "Actual", "Predicted", "Mean absolute error", "Accuracy", "Better than linear regression alone"];
       [[h.minutes === 1 ? "1 minute" : `${h.minutes} minutes`, ""], [shortModel, ""],
        [`${fmt(f.actual)} °C`, "n"], [`${fmt(f.predicted)} °C`, "n"],
-       [`${fmt(h.metrics.mae, 3)} °C`, "n"], gain].forEach(([text, cls], c) => {
+       [`${fmt(h.metrics.mae, 3)} °C`, "n"], [`${fmt(h.metrics.accuracy, 3)}%`, "n"], gain].forEach(([text, cls], c) => {
         const td = document.createElement("td");
         td.textContent = text;
         if (cls) td.className = cls;

@@ -424,42 +424,13 @@ h2 #row-id { font-variant-numeric: tabular-nums; }
 }
 
 /* ---------------------------------------------------------------------------
-   The boiler panel is drawn like a control room mimic screen: dark, with the
-   process streams as the only colour. Everything else on the page stays light.
+   Boiler panel motion: start-up sequence, stream fill, particles, readout flash
    --------------------------------------------------------------------------- */
-.plant {
-  --panel: #0E1922;
-  --sheet: #0E1922;
-  --ink: #EDF2F6;
-  --muted: #93A4B5;
-  --line: #2A3B4C;
-  --steel: #6B7E90;
-  --steel-fill: #162431;
-  --pipe: #1D2D3C;
-  --idle: #455769;
-  --coal: #566472;
-  --smoke: #6A7C8E;
-  --steam: #FF6F86;
-  --flue: #F0B23E;
-  --water: #35C6D4;
-  --air: #8B9BFF;
-  --focus: #AEB8FF;
-  background: var(--panel);
-  border-color: #1B2936;
-  box-shadow: 0 1px 0 rgba(22, 33, 44, .03), 0 30px 60px -34px rgba(14, 25, 34, .7);
-  overflow: hidden;
-}
-.plant .lumps circle { fill: #8493A2; }
-.plant .hint { color: var(--muted); }
+.plant { overflow: hidden; }
 
 .ambient { opacity: 0; transition: opacity 1.6s ease; }
-.running .ambient { opacity: 1; transition-delay: .3s; animation: breathe 3.4s ease-in-out 1.9s infinite alternate; }
-@keyframes breathe { to { opacity: .72; } }
-
-.running .furnace .shell { fill: #24180F; stroke: #C4703C; }
-.running .bank.steam rect { fill: color-mix(in srgb, var(--steam) 16%, var(--panel)); }
-.running .bank.water rect { fill: color-mix(in srgb, var(--water) 14%, var(--panel)); }
-.running .bank.air rect { fill: color-mix(in srgb, var(--air) 16%, var(--panel)); }
+.running .ambient { opacity: .8; transition-delay: .3s; animation: breathe 3.4s ease-in-out 1.9s infinite alternate; }
+@keyframes breathe { to { opacity: .5; } }
 
 /* the flames catch from the bed upward instead of fading in */
 .fire .f { transform: scaleY(.05); transition: opacity .5s ease, transform .9s cubic-bezier(.2, .9, .3, 1.25); }
@@ -475,7 +446,7 @@ h2 #row-id { font-variant-numeric: tabular-nums; }
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  opacity: .3;
+  opacity: .22;
   transition: stroke-dashoffset .8s ease-in;
 }
 .fill.steam path { stroke: var(--steam); }
@@ -490,29 +461,34 @@ h2 #row-id { font-variant-numeric: tabular-nums; }
 .motes circle { opacity: 0; }
 
 /* the readout wakes last, when steam reaches it, and flashes whenever its value changes */
-.plant .readout rect { fill: #13212D; }
-.running .readout rect { transition-delay: 2.1s; filter: drop-shadow(0 0 7px rgba(255, 111, 134, .45)); }
+.running .readout rect { transition-delay: 2.1s; filter: drop-shadow(0 0 6px rgba(191, 42, 69, .28)); }
 .running .readout .val { transition-delay: 2.1s; }
 .readout.tick rect { animation: tick .9s ease-out; }
 @keyframes tick {
-  0% { stroke-width: 5; stroke: #FFD0D8; }
+  0% { stroke-width: 5; }
   100% { stroke-width: 1.5; }
 }
 
-/* the one control on the panel */
-.plant .btn.primary { background: #F3F6F9; border-color: #F3F6F9; color: #0E1922; }
-.plant .btn.primary svg { color: #E8590C; }
-.plant .btn.primary:hover { background: #fff; border-color: #fff; }
-.plant .btn.primary[aria-pressed="false"] { animation: invite 2.6s ease-out 1.2s infinite; }
+/* a soft pulse on the one control until the boiler is started */
+.btn.primary[aria-pressed="false"] { animation: invite 2.6s ease-out 1.2s infinite; }
 @keyframes invite {
-  0% { box-shadow: 0 0 0 0 rgba(243, 246, 249, .38); }
-  70%, 100% { box-shadow: 0 0 0 14px rgba(243, 246, 249, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(22, 33, 44, .3); }
+  70%, 100% { box-shadow: 0 0 0 14px rgba(22, 33, 44, 0); }
 }
-.plant .btn.primary[aria-pressed="true"] { background: transparent; color: var(--ink); border-color: #33475A; }
-.plant .btn.primary[aria-pressed="true"]:hover { background: #162431; border-color: var(--steel); }
-.plant .btn.primary[aria-pressed="true"] svg { color: var(--steam); }
 
 @media (prefers-reduced-motion: reduce) {
-  .running .ambient, .plant .btn.primary[aria-pressed="false"], .readout.tick rect { animation: none; }
+  .running .ambient, .btn.primary[aria-pressed="false"], .readout.tick rect { animation: none; }
   .ambient, .fill path, .running .fill path, .fire .f { transition: none; }
+}
+
+/* accuracy sits beside actual and error */
+.fig-pair { grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 16px; }
+.fig .num.small { font-size: 1.7rem; white-space: nowrap; }
+.results-body { grid-template-columns: minmax(280px, 390px) 1fr; }
+@media (max-width: 860px) { .results-body { grid-template-columns: 1fr; } }
+@media (max-width: 400px) { .fig .num.small { font-size: 1.45rem; } .fig-pair { gap: 10px; } }
+.moment table { min-width: 860px; }
+@media (max-width: 720px) {
+  .moment table { min-width: 0; }
+  .moment td:last-child { grid-column: 1 / -1; }
 }
