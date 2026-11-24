@@ -12,7 +12,7 @@
 
   const fmt = (n, d = 2) =>
     Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace("-", "−");
-  const nSensor = D.n_sensor_inputs;
+  const nSensor = D.n_sensor_inputs; // the 29 plant sensors come first in D.features
   const H = D.horizons;
   const WORDS = { 1: "one minute", 5: "five minutes", 10: "ten minutes" };
   const words = (m) => WORDS[m] || `${m} minutes`;
@@ -27,7 +27,7 @@
 
   // outlet temperature history from the model inputs, oldest first: [feature index, seconds before now]
   const history = D.features
-    .map((name, i) => (i >= nSensor ? [i, lagSeconds(name)] : null))
+    .map((name, i) => (/_lag\d+$/.test(name) ? [i, lagSeconds(name)] : null))
     .filter(Boolean)
     .concat([[targetIdx, 0]])
     .sort((a, b) => b[1] - a[1]);
@@ -199,14 +199,17 @@
   function modelName(name) {
     const m = name.match(/^Linear Regression \+ tuned (.+) correction$/);
     if (m) return `Linear regression with a tuned ${m[1]} correction (hybrid)`;
-    const a = name.match(/^Average of Linear Regression and tuned (.+)$/);
-    if (a) return `Equal-weight average of linear regression and a tuned ${a[1]} model (hybrid)`;
+    const a = name.match(/^(?:Weighted a|A)verage of Linear Regression and tuned (.+)$/);
+    const w = H.find((h) => h.model === name);
+    if (a) return w && w.blend_weight != null
+      ? `${fmt(w.blend_weight, 2)} × linear regression + ${fmt(1 - w.blend_weight, 2)} × tuned ${a[1]} (hybrid)`
+      : `Weighted average of linear regression and a tuned ${a[1]} model (hybrid)`;
     return name === "Linear Regression" ? "Linear regression" : name;
   }
 
   // short names for the table; the full name is on the "Model:" line above the chart
   function shortName(name) {
-    const m = name.match(/^Linear Regression \+ tuned (.+) correction$/) || name.match(/^Average of Linear Regression and tuned (.+)$/);
+    const m = name.match(/^Linear Regression \+ tuned (.+) correction$/) || name.match(/^(?:Weighted a|A)verage of Linear Regression and tuned (.+)$/);
     if (m) return "LR + " + (m[1] === "Random Forest" ? "Rand Forest" : m[1]);
     return name === "Linear Regression" ? "LR" : name;
   }
@@ -248,11 +251,11 @@
   function renderFigures(row, fresh) {
     const h = H[hz];
     const f = row.forecasts[hz];
-    const mae = h.metrics.mae;
+    const band = h.interval90;
     const err = f.predicted - f.actual;
-    const within = Math.abs(err) <= mae;
+    const within = Math.abs(err) <= band;
     el("row-id").textContent = row.row.toLocaleString("en-US");
-    el("row-note").textContent = `One of ${h.test_rows.toLocaleString("en-US")} held-out rows the model never trained on, picked at random.`;
+    el("row-note").textContent = `One of ${h.test_rows.toLocaleString("en-US")} test rows, picked at random. The model never trained on them, and they played no part in choosing it.`;
     el("hero-name").textContent = `Predicted outlet temperature, ${words(h.minutes)} ahead`;
     el("actual-name").textContent = `Actual, ${words(h.minutes)} later`;
     // accuracy of this one forecast: 100% minus its percentage error
@@ -261,13 +264,14 @@
     const status = el("status");
     status.className = "status " + (within ? "is-good" : "is-warn");
     el("status-text").textContent = within
-      ? `Within the model's mean error of ${fmt(mae, 3)} °C.`
-      : `Larger than the model's mean error of ${fmt(mae, 3)} °C.`;
+      ? `Inside the model's 90% prediction interval of ±${fmt(band, 2)} °C.`
+      : `Outside the model's 90% prediction interval of ±${fmt(band, 2)} °C.`;
     el("model-used").textContent = `Model: ${modelName(h.model)}`;
-    el("band-label").textContent = "Mean error of each forecast";
+    el("band-label").textContent = "90% prediction interval";
     el("chart-cap").textContent =
       "Outlet steam temperature over the 10 minutes before this moment (lighter after Now: what was measured next), " +
-      "and the forecasts made at this moment for 1, 5 and 10 minutes ahead. The selected horizon is darker.";
+      "and the forecasts made at this moment for 1, 5 and 10 minutes ahead with their 90% prediction intervals. " +
+      "The selected horizon is darker.";
   }
 
   function renderMoment(row) {
@@ -278,13 +282,17 @@
       const tr = document.createElement("tr");
       if (k === hz) tr.className = "on";
       const shortModel = shortName(h.model);
-      const gain = h.improvement_percent > 0
-        ? [`${fmt(h.improvement_percent, 1)}% lower error`, "n gain"]
-        : ["Is linear regression", "n same"];
-      const labels = ["", "", "Actual °C", "Predicted °C", "MAE °C", "Accuracy", "Better than linear regression alone"];
+      // "clearly" lower only when the whole bootstrap range of the difference is below zero
+      const clear = h.improvement_ci && h.improvement_ci[1] < 0;
+      const gain = h.model === "Linear Regression"
+        ? ["Is linear regression", "n same"]
+        : h.improvement_percent > 0
+          ? [`${fmt(h.improvement_percent, 1)}% lower error` + (clear ? "" : " (within noise)"), clear ? "n gain" : "n same"]
+          : ["No lower error", "n same"];
+      const labels = ["", "", "Actual °C", "Predicted °C", "MAE °C", "Skill", "Better than linear regression alone"];
       [[h.minutes === 1 ? "1 minute" : `${h.minutes} minutes`, ""], [shortModel, ""],
        [fmt(f.actual), "n"], [fmt(f.predicted), "n"],
-       [fmt(h.metrics.mae, 3), "n"], [`${fmt(h.metrics.accuracy, 2)}%`, "n"], gain].forEach(([text, cls], c) => {
+       [fmt(h.metrics.mae, 3), "n"], [fmt(h.metrics.skill, 2), "n"], gain].forEach(([text, cls], c) => {
         const td = document.createElement("td");
         td.textContent = text;
         if (cls) td.className = cls;
@@ -300,12 +308,13 @@
   function renderInputs(row) {
     const wrap = el("input-groups");
     wrap.innerHTML = "";
+    const used = new Set(H[hz].inputs_used);
+    const ago = (s) => (s === 0 ? "Now" : s < 60 ? `${s} s earlier` : `${s / 60} min earlier`);
     const sections = [{
       title: "Outlet steam temperature",
-      rows: history.slice().reverse().map(([i, s]) => [s === 0 ? "Now" : `${s} s earlier`, row.inputs[i], "°C"]),
+      rows: history.slice().reverse().filter(([i]) => used.has(i)).map(([i, s]) => [ago(s), row.inputs[i], "°C"]),
     }];
     const buckets = GROUPS.map((g) => ({ title: g.title, rows: [] }));
-    const used = new Set(H[hz].inputs_used);
     D.features.slice(0, nSensor).forEach((name, i) => {
       if (i === targetIdx || !used.has(i)) return;
       buckets[GROUPS.findIndex((g) => g.test(name))].rows.push([name, row.inputs[i], unitOf(name)]);
@@ -343,7 +352,10 @@
 
     const h = H[hz];
     el("inputs-sub").textContent =
-      `All ${h.inputs_used.length} inputs the ${words(h.minutes)} forecast uses at this moment (temperatures in °C). ` +
+      `The ${h.inputs_used.length} readings the ${words(h.minutes)} forecast uses at this moment (temperatures in °C)` +
+      (h.n_model_inputs > h.inputs_used.length
+        ? `. From them the model also computes averages, spreads and changes over the last 1 to 10 minutes, ${h.n_model_inputs} inputs in all. `
+        : ". ") +
       (h.all_sensors
         ? `This horizon uses all ${D.n_sensors_before} sensors, because dropping correlated sensors lowered its accuracy.`
         : `${D.n_sensors_dropped} of the ${D.n_sensors_before} sensors were dropped for being more than ${D.correlation_limit} correlated with a sensor that was kept.`);
@@ -378,7 +390,7 @@
     const fc = H.map((h, k) => ({ t: h.minutes * 60, h, f: row.forecasts[k], on: k === hz }));
 
     const ys = row.history.concat(row.future);
-    fc.forEach(({ f, h }) => ys.push(f.actual, f.predicted - h.metrics.mae, f.predicted + h.metrics.mae));
+    fc.forEach(({ f, h }) => ys.push(f.actual, f.predicted - h.interval90, f.predicted + h.interval90));
     let lo = Math.min(...ys), hi = Math.max(...ys);
     const span = Math.max(hi - lo, 0.6);
     lo -= span * 0.08; hi += span * 0.08;
@@ -440,10 +452,10 @@
         { transform: "scale(1)", opacity: 1 }], { duration: 480, delay, easing: "ease-out" });
     };
 
-    // ± mean error band around each forecast
+    // 90% prediction interval around each forecast
     fc.forEach(({ t, h, f, on }) => {
-      const band = node("rect", { x: sx(t) - 7, width: 14, y: sy(f.predicted + h.metrics.mae),
-        height: sy(f.predicted - h.metrics.mae) - sy(f.predicted + h.metrics.mae),
+      const band = node("rect", { x: sx(t) - 7, width: 14, y: sy(f.predicted + h.interval90),
+        height: sy(f.predicted - h.interval90) - sy(f.predicted + h.interval90),
         rx: 4, fill: "var(--ink)", "fill-opacity": on ? 0.13 : 0.06 }, marks);
       tween(band, [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: reach(t) });
     });

@@ -241,7 +241,7 @@
         <ul class="legend" aria-label="Chart key">
           <li><svg width="26" height="12" aria-hidden="true"><path d="M1 6 H25" stroke="var(--steam)" stroke-width="2"/><circle cx="13" cy="6" r="4" fill="var(--steam)" stroke="#fff" stroke-width="2"/></svg>Measured</li>
           <li><svg width="26" height="12" aria-hidden="true"><path d="M1 6 H25" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="4 4"/><circle cx="13" cy="6" r="4" fill="#fff" stroke="var(--ink)" stroke-width="2"/></svg>Forecast</li>
-          <li><svg width="14" height="16" aria-hidden="true"><rect x="2" y="1" width="10" height="14" rx="3" fill="var(--ink)" fill-opacity=".1"/></svg><span id="band-label">Mean error band</span></li>
+          <li><svg width="14" height="16" aria-hidden="true"><rect x="2" y="1" width="10" height="14" rx="3" fill="var(--ink)" fill-opacity=".1"/></svg><span id="band-label">90% prediction interval</span></li>
         </ul>
         <div class="chart" id="chart"></div>
         <figcaption id="chart-cap">Outlet steam temperature over the last minute, and where the model expects it one minute from now.</figcaption>
@@ -253,12 +253,12 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th scope="col">Horizon</th><th scope="col">Model</th><th scope="col" class="n">Actual °C</th><th scope="col" class="n">Predicted °C</th><th scope="col" class="n"><abbr title="Mean absolute error">MAE</abbr> °C</th><th scope="col" class="n">Accuracy</th><th scope="col" class="n">Better than linear regression alone</th></tr>
+            <tr><th scope="col">Horizon</th><th scope="col">Model</th><th scope="col" class="n">Actual °C</th><th scope="col" class="n">Predicted °C</th><th scope="col" class="n"><abbr title="Mean absolute error">MAE</abbr> °C</th><th scope="col" class="n"><abbr title="1 minus the model's MAE divided by the MAE of assuming no change">Skill</abbr></th><th scope="col" class="n">Better than linear regression alone</th></tr>
           </thead>
           <tbody id="moment-body"></tbody>
         </table>
       </div>
-      <p class="note">Actual and predicted are for this test row. MAE (mean absolute error) and accuracy are the model's averages over the whole test set. Accuracy is 100% minus the percentage error.</p>
+      <p class="note">Actual and predicted are for this test row. MAE (mean absolute error) and skill are the model's averages over the whole test set. Skill is 1 minus the model's MAE divided by the MAE of assuming the temperature stays the same: 0 is no better than that, 1 is perfect. "Within noise" means a one-hour block bootstrap of the test period could not rule out that the gain is luck. The accuracy figure above is 100% minus this forecast's percentage error; because the temperature is about 537 °C it stays above 99% even for a 5 °C miss.</p>
     </div>
   </section>
 
