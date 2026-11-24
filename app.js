@@ -218,7 +218,7 @@
     predicted: (v) => fmt(v),
     actual: (v) => fmt(v),
     error: (v) => (v >= 0 ? "+" : "−") + fmt(Math.abs(v), 3),
-    accuracy: (v) => fmt(v, 2),
+    accuracy: (v) => fmt(v, 3), // 3 decimals: a 0.02 °C miss would otherwise round to 100.00%
   };
   const figureNow = {};
   let figureAnim = null;
